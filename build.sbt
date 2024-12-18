@@ -52,7 +52,9 @@ libraryDependencies ++= Seq(
   "beyondthelines" %% "grpcgatewayruntime" % "0.0.9" % "compile,protobuf",
 
   // AWS SDK to access S3
-  "com.amazonaws" % "aws-java-sdk-s3" % "1.11.385"
+  "software.amazon.awssdk" % "s3" % "2.29.36",
+  // STS for OIDC federation support in IAM
+  "software.amazon.awssdk" % "sts" % "2.29.36"
 
 )
 
