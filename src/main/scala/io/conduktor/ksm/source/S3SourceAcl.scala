@@ -1,15 +1,15 @@
 package io.conduktor.ksm.source
 
-import java.io._
-import java.util.Date
-import com.amazonaws.regions.Regions
-import com.amazonaws.services.s3._
-import com.amazonaws.services.s3.model._
-import io.conduktor.ksm.parser.AclParserRegistry
 import com.typesafe.config.Config
 import io.conduktor.ksm.parser.AclParserRegistry
 import io.conduktor.ksm.source
 import org.slf4j.LoggerFactory
+import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.{GetObjectRequest, S3Exception}
+
+import java.io._
+import java.time.Instant
+import scala.util.{Failure, Success, Try}
 
 class S3SourceAcl(parserRegistry: AclParserRegistry)
     extends SourceAcl(parserRegistry) {
@@ -23,9 +23,8 @@ class S3SourceAcl(parserRegistry: AclParserRegistry)
 
   final val BUCKET_NAME = "bucketname"
   final val BUCKET_KEY = "objectkey"
-  final val REGION = "region"
 
-  var lastModified: Date = new Date(0)
+  var lastModified: Instant = Instant.EPOCH
   var bucket: String = _
   var key: String = _
   var region: String = _
@@ -36,8 +35,8 @@ class S3SourceAcl(parserRegistry: AclParserRegistry)
     region = regn
   }
 
-  def s3Client(): AmazonS3 =
-    AmazonS3ClientBuilder.standard.withRegion(Regions.fromName(region)).build
+  def s3Client(): S3Client =
+    S3Client.builder().build
 
   /**
     * internal config definition for the module
@@ -45,7 +44,6 @@ class S3SourceAcl(parserRegistry: AclParserRegistry)
   override def configure(config: Config): Unit = {
     bucket = config.getString(BUCKET_NAME)
     key = config.getString(BUCKET_KEY)
-    region = config.getString(REGION)
   }
 
   /**
@@ -61,36 +59,48 @@ class S3SourceAcl(parserRegistry: AclParserRegistry)
     */
   override def refresh(): Option[ParsingContext] = {
     val s3 = s3Client()
-    val s3object = Option(
+    val s3Response = Try(
       s3.getObject(
-        new GetObjectRequest(bucket, key)
-          .withModifiedSinceConstraint(lastModified)
+        GetObjectRequest.builder()
+          .bucket(bucket)
+          .key(key)
+          .ifModifiedSince(lastModified)
+          .build()
       )
     )
-    // Null is returned when S3 responds with 304 Not Modified
-    s3object match {
-      case Some(bucket) =>
-        val reader = new BufferedReader(
-          new InputStreamReader(bucket.getObjectContent)
-        )
-        lastModified = bucket.getObjectMetadata.getLastModified
 
-        val content =
-          Stream
-            .continually(reader.readLine())
-            .takeWhile(_ != null)
-            .map(_.concat("\n"))
-            .mkString
-
-        reader.close()
-        bucket.close()
-        Some(
-          source.ParsingContext(
-            parserRegistry.getParserByFilename(key),
-            new BufferedReader(new StringReader(content))
+    s3Response match {
+      case Success(s3ObjectStream) =>
+        var reader: BufferedReader = null
+        try {
+          reader = new BufferedReader(
+            new InputStreamReader(s3ObjectStream)
           )
-        )
-      case None => None
+          lastModified = s3ObjectStream.response().lastModified()
+
+          val content =
+            Stream
+              .continually(reader.readLine())
+              .takeWhile(_ != null)
+              .map(_.concat("\n"))
+              .mkString
+          Some(
+            source.ParsingContext(
+              parserRegistry.getParserByFilename(key),
+              new BufferedReader(new StringReader(content))
+            )
+          )
+        } finally {
+          // no try-with-resources in Scala 2.12 :/
+          if (reader != null) reader.close()
+          s3ObjectStream.close()
+        }
+      case Failure(exception: S3Exception) if exception.statusCode() == 304 =>
+        log.debug("S3 object not modified--skipping")
+        None
+      case Failure(error) =>
+        log.error("Error fetching S3 object", error)
+        None
     }
   }
 

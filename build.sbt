@@ -90,7 +90,9 @@ libraryDependencies ++= Seq(
   "com.fasterxml.jackson.core" % "jackson-core" % "2.13.1",
 
   // AWS SDK to access S3
-  "com.amazonaws" % "aws-java-sdk-s3" % "1.11.385",
+  "software.amazon.awssdk" % "s3" % "2.29.36",
+  // STS for OIDC federation support in IAM
+  "software.amazon.awssdk" % "sts" % "2.29.36",
 
   // Google Auth
   "com.google.auth" % "google-auth-library-oauth2-http" % "0.25.5"
