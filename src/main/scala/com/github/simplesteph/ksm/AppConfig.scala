@@ -64,12 +64,6 @@ class AppConfig(config: Config) {
     val csvDelimiter: Char = aclParserConfig.getString("csv.delimiter").charAt(0)
   }
 
-  object GRPC {
-    private val grpcConfig = config.getConfig("grpc")
-    val port: Int = grpcConfig.getInt("port")
-    val gatewayPort: Int = grpcConfig.getInt("gateway.port")
-  }
-
   object Feature {
     private val featureConfig = config.getConfig("feature")
     val grpc: Boolean = featureConfig.getBoolean("grpc")

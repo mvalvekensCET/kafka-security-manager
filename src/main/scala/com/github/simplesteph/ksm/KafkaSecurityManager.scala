@@ -2,7 +2,6 @@ package com.github.simplesteph.ksm
 
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.github.simplesteph.ksm.grpc.KsmGrpcServer
 import com.github.simplesteph.ksm.parser.CsvAclParser
 import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
@@ -18,7 +17,6 @@ object KafkaSecurityManager extends App {
   val appConfig: AppConfig = new AppConfig(config)
 
   var isCancelled: AtomicBoolean = new AtomicBoolean(false)
-  var grpcServer: KsmGrpcServer = _
   var aclSynchronizer: AclSynchronizer = _
   val aclParser = new CsvAclParser(appConfig.Parser.csvDelimiter)
   val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(1)
@@ -31,19 +29,6 @@ object KafkaSecurityManager extends App {
                                           appConfig.Notification.notification,
                                           aclParser,
                                           appConfig.KSM.readOnly)
-
-    Try {
-      grpcServer = new KsmGrpcServer(aclSynchronizer,
-                                     appConfig.GRPC.port,
-                                     appConfig.GRPC.gatewayPort,
-                                     appConfig.Feature.grpc)
-      grpcServer.start()
-    } match {
-      case Success(_) =>
-      case Failure(e) =>
-        log.error("gRPC Server failed to start", e)
-        shutdown()
-    }
 
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
@@ -76,7 +61,6 @@ object KafkaSecurityManager extends App {
     log.info("Kafka Security Manager is shutting down...")
     isCancelled = new AtomicBoolean(true)
     aclSynchronizer.close()
-    grpcServer.stop()
     scheduler.shutdownNow()
   }
 }

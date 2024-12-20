@@ -13,7 +13,7 @@ lazy val root = (project in file("."))
 
 
 resolvers ++= Seq(
-  "Artima Maven Repository" at "http://repo.artima.com/releases",
+  "Artima Maven Repository" at "https://repo.artima.com/releases",
   Resolver.bintrayRepo("beyondthelines", "maven")
 )
 
@@ -42,15 +42,6 @@ libraryDependencies ++= Seq(
   "org.skinny-framework" %% "skinny-http-client" % "2.3.7",
   "com.fasterxml.jackson.core" % "jackson-core" % "2.9.4",
 
-  // GRPC
-  "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-  "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
-  "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
-  "io.grpc" % "grpc-services" % scalapb.compiler.Version.grpcJavaVersion,
-
-  // REST gateway generation
-  "beyondthelines" %% "grpcgatewayruntime" % "0.0.9" % "compile,protobuf",
-
   // AWS SDK to access S3
   "software.amazon.awssdk" % "s3" % "2.29.36",
   // STS for OIDC federation support in IAM
@@ -58,22 +49,14 @@ libraryDependencies ++= Seq(
 
 )
 
-mainClass in Compile := Some("com.github.simplesteph.ksm.KafkaSecurityManager")
+Compile / mainClass := Some("com.github.simplesteph.ksm.KafkaSecurityManager")
 
-parallelExecution in Test := false
+Test / parallelExecution := false
 
 // Docker stuff
 dockerRepository := Some("simplesteph")
 dockerUpdateLatest := true
 dockerBaseImage := "openjdk:8-jre-slim"
-
-PB.targets in Compile := Seq(
-  scalapb.gen() -> (sourceManaged in Compile).value,
-  // generate Swagger spec files into the `resources/specs`
-  grpcgateway.generators.SwaggerGenerator -> (resourceDirectory in Compile).value / "specs",
-  // generate the Rest Gateway source code
-  grpcgateway.generators.GatewayGenerator -> (sourceManaged in Compile).value
-)
 
 // Add the default sonatype repository setting
 publishTo := sonatypePublishTo.value
